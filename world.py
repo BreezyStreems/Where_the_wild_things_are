@@ -282,13 +282,14 @@ class World:
 
                         voxels = self.chunk_voxels[(cx, cy)]
                         voxels['materials'][lx, ly, lz] = 0
-                        voxels['density'][lx, ly, lz] = 0
+                        voxels['density'][lx, ly, lz] = -1.0
                         self.chunk_voxels[(cx, cy)] = voxels
 
         chunks_to_refresh = list(dict.fromkeys(chunks_to_refresh))
 
         db_conn = sqlite3.connect(self.db_path)
         cursor = db_conn.cursor()
+        updated_chunks = {}
 
         for chunk in chunks_to_refresh:
             cx, cy = chunk
@@ -300,7 +301,11 @@ class World:
                 "UPDATE chunks SET data = ? WHERE cx = ? AND cy = ?",
                 (data, cx, cy)
             )
-            db_conn.commit()
+            updated_chunks[(cx, cy)] = (meshes, voxels)
+        db_conn.commit()
+        db_conn.close()
+
+        return updated_chunks
 
     def get_picked_block(self, screen_w, screen_h, view_matrix, proj_matrix, camera_pos):
         ndc_x = (2.0 * (screen_w / 2)) / screen_w - 1.0
@@ -494,3 +499,46 @@ class World:
         interleaved_LOD = np.hstack((v_data, n_data, mat_data_interleaved)).astype(np.float32)
 
         return interleaved, interleaved_LOD
+
+    def rebuild_gpu_chunk(self, cx, cy, meshes, chunk_vaos, ctx, prog):
+        mesh_data, low_res_mesh_data, transparencies_mesh_data, low_res_transparencies_mesh_data = meshes
+
+        if (cx, cy) in chunk_vaos:
+            old_entry = chunk_vaos[(cx, cy)]
+            for key in ['vao', 'vbo', 'low_detail_vao', 'low_detail_vbo', 'trans_vao', 'trans_vbo', 'trans_lod_vao',
+                        'trans_lod_vbo']:
+                if key in old_entry:
+                    old_entry[key].release()
+
+        chunk_entry = {
+            'count': len(mesh_data),
+            'low_detail_count': len(low_res_mesh_data),
+            'trans_count': len(transparencies_mesh_data),
+            'trans_lod_count': len(low_res_transparencies_mesh_data)
+        }
+
+        if len(mesh_data) > 0:
+            vbo = ctx.buffer(mesh_data.tobytes())
+            chunk_entry['vbo'] = vbo
+            chunk_entry['vao'] = ctx.vertex_array(prog, [(vbo, '3f 3f 1f', 'in_position', 'in_normal', 'in_material')])
+
+        if len(low_res_mesh_data) > 0:
+            low_vbo = ctx.buffer(low_res_mesh_data.tobytes())
+            chunk_entry['low_detail_vbo'] = low_vbo
+            chunk_entry['low_detail_vao'] = ctx.vertex_array(prog, [(low_vbo, '3f 3f 1f', 'in_position', 'in_normal',
+                                                                     'in_material')])
+
+        if len(transparencies_mesh_data) > 0:
+            trans_vbo = ctx.buffer(transparencies_mesh_data.tobytes())
+            chunk_entry['trans_vbo'] = trans_vbo
+            chunk_entry['trans_vao'] = ctx.vertex_array(prog, [(trans_vbo, '3f 3f 1f', 'in_position', 'in_normal',
+                                                                'in_material')])
+
+        if len(low_res_transparencies_mesh_data) > 0:
+            trans_lod_vbo = ctx.buffer(low_res_transparencies_mesh_data.tobytes())
+            chunk_entry['trans_lod_vbo'] = trans_lod_vbo
+            chunk_entry['trans_lod_vao'] = ctx.vertex_array(prog,
+                                                            [(trans_lod_vbo, '3f 3f 1f', 'in_position', 'in_normal',
+                                                              'in_material')])
+
+        chunk_vaos[(cx, cy)] = chunk_entry

@@ -279,7 +279,10 @@ while running:
                   f'{block['chunk']}', font_size=15, position=(10, 400))
 
         if mouse[2]:
-            world.dig(3, block['hit_pos'][0], block['hit_pos'][1], block['hit_pos'][2])
+            modified_chunks = world.dig(3, block['hit_pos'][0], block['hit_pos'][1], block['hit_pos'][2])
+
+            for (cx, cy), (meshes, voxels) in modified_chunks.items():
+                world.rebuild_gpu_chunk(cx, cy, meshes, chunk_vaos, ctx, prog)
 
     fps.update()
     draw.text(str(fps.frame_push), position=(10, 10))
