@@ -272,9 +272,9 @@ while running:
 
     mouse = pygame.mouse.get_pressed()
     block = world.get_picked_block(1000, 800, camera.get_view_matrix(), camera.projection_matrix(1000 / 800),
-                                   (camera.X, camera.Y, camera.Z))
+                                   (camera.X, camera.Y, camera.Z), dist=20)
     if block:
-        draw.text(f'{block['hit_pos'][0]}, {block['hit_pos'][1]}, {block['hit_pos'][2]}, '
+        draw.text(f'{math.floor(block['hit_pos'][0]), math.floor(block['hit_pos'][1]), math.floor(block['hit_pos'][2])}'
                   f'{block['material']}, '
                   f'{block['chunk']}', font_size=15, position=(10, 400))
 

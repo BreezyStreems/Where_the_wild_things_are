@@ -265,25 +265,22 @@ class World:
         mx, my, mz = math.floor(mx), math.floor(my), math.floor(mz)
         print(f'dug: {mx, my, mz}')
         chunks_to_refresh = []
-        for i in range(mx - radius, mx + radius):
-            for o in range(my - radius, my + radius):
-                for p in range(mz - radius, mz + radius):
-                    distance = math.sqrt((i - mx)**2 + (o - my)**2 + (p - mz)**2)
+        for i in range(mx - radius, mx + radius + 1):
+            for o in range(my - radius, my + radius + 1):
+                for p in range(max(mz - radius, 0), min(mz + radius + 1, 100)):
+                    cx = math.floor(i / 17)
+                    cy = math.floor(o / 17)
 
-                    if distance <= radius:
-                        cx = math.floor(i/ self.chunk_size)
-                        cy = math.floor(o / self.chunk_size)
+                    chunks_to_refresh.append((cx, cy))
 
-                        chunks_to_refresh.append((cx, cy))
+                    lx = int(math.floor(i)) % self.chunk_size
+                    ly = int(math.floor(o)) % self.chunk_size
+                    lz = int(math.floor(p))
 
-                        lx = int(math.floor(i)) % self.chunk_size
-                        ly = int(math.floor(o)) % self.chunk_size
-                        lz = int(math.floor(p))
-
-                        voxels = self.chunk_voxels[(cx, cy)]
-                        voxels['materials'][lx, ly, lz] = 0
-                        voxels['density'][lx, ly, lz] = -1.0
-                        self.chunk_voxels[(cx, cy)] = voxels
+                    voxels = self.chunk_voxels[(cx, cy)]
+                    voxels['materials'][lx, ly, lz] = 0
+                    voxels['density'][lx, ly, lz] = -1.0
+                    self.chunk_voxels[(cx, cy)] = voxels
 
         chunks_to_refresh = list(dict.fromkeys(chunks_to_refresh))
 
@@ -307,7 +304,7 @@ class World:
 
         return updated_chunks
 
-    def get_picked_block(self, screen_w, screen_h, view_matrix, proj_matrix, camera_pos):
+    def get_picked_block(self, screen_w, screen_h, view_matrix, proj_matrix, camera_pos, dist=10):
         ndc_x = (2.0 * (screen_w / 2)) / screen_w - 1.0
         ndc_y = 1.0 - (2.0 * (screen_h / 2)) / screen_h
 
@@ -323,7 +320,7 @@ class World:
         ray_dir = ray_world / np.linalg.norm(ray_world)
 
         current_dist = 0.0
-        max_dist = 10
+        max_dist = dist
         ray_origin = np.array(camera_pos, dtype=np.float32)
         step_size = 0.2
 
